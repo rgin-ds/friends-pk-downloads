@@ -1,0 +1,67 @@
+# LOCAL TEMPLATE ONLY: EXACT_OFFLINE_MATERIALIZED_PINS must be replaced by the offline materializer.
+# No private font/class/catalog bytes in workflow/repository; no Actions artifacts/cache/raw logs.
+name: Private native-font constructor diagnostic
+on:
+  workflow_dispatch:
+    inputs:
+      binding_base64:
+        description: Exact reviewed fresh admission JSON, not credentials
+        required: true
+        type: string
+      binding_sha256:
+        description: Full SHA256 of decoded admission JSON
+        required: true
+        type: string
+permissions:
+  contents: write
+concurrency:
+  group: private-font-constructor-6e8f70b7fa18b0979d88e19260f9fbe5
+  cancel-in-progress: false
+jobs:
+  constructor:
+    if: github.repository_id == '1433690543' && github.run_attempt == 1
+    runs-on: windows-2025
+    timeout-minutes: 10
+    steps:
+      - name: Pinned generic source and private constructor job
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+          FONT_BINDING_BASE64: ${{ inputs.binding_base64 }}
+          FONT_BINDING_SHA256: ${{ inputs.binding_sha256 }}
+        run: |
+          $ErrorActionPreference='Stop';$ProgressPreference='SilentlyContinue';$VerbosePreference='SilentlyContinue';$DebugPreference='SilentlyContinue';$WarningPreference='SilentlyContinue'
+          try {
+            if($env:GITHUB_REPOSITORY -cne 'rgin-ds/friends-pk-downloads' -or $env:GITHUB_REPOSITORY_ID -cne '1433690543' -or $env:GITHUB_EVENT_NAME -cne 'workflow_dispatch' -or $env:GITHUB_RUN_ATTEMPT -cne '1'){throw 'REFUSED'}
+            if($env:FONT_BINDING_BASE64.Length -gt 16384 -or $env:FONT_BINDING_SHA256 -cnotmatch '^[a-f0-9]{64}$'){throw 'REFUSED'}
+            $raw=[Convert]::FromBase64String($env:FONT_BINDING_BASE64)
+            if($raw.Length -gt 8192 -or [Convert]::ToHexString([Security.Cryptography.SHA256]::HashData($raw)).ToLowerInvariant() -cne $env:FONT_BINDING_SHA256){throw 'REFUSED'}
+            $b=[Text.UTF8Encoding]::new($false,$true).GetString($raw)|ConvertFrom-Json -AsHashtable -NoEnumerate
+            if($b.schemaVersion -ne 1 -or $b.nonce -cne '6e8f70b7fa18b0979d88e19260f9fbe5' -or $b.workflowCommit -cne $env:GITHUB_SHA -or $b.workflowRef -cne $env:GITHUB_WORKFLOW_REF -or $b.rootGoSHA256 -cnotmatch '^[a-f0-9]{64}$' -or $b.rootGoSHA256 -ceq ('0'*64)){throw 'REFUSED'}
+            # No private transfer until Controller strict typed keys/time/pins validation succeeds.
+            $pins=ConvertFrom-Json -AsHashtable -InputObject '{"Worker.ps1":{"bytes":37012,"sha256":"859d3d0d1ab0c4d47694d25044f8eb7284baf4d39a7d252cc15fcf00735945cf"},"WinGuard.cs":{"bytes":25374,"sha256":"1ad5090fd4098dc358c1bb9e2d78b4c1d8d1c4df90d0df2695e7f165a435bbcb"},"Signal.ps1":{"bytes":900,"sha256":"27e0d1a78624675e0be4e56a79b51e668d42535a36f5a8e2cb2fc338281daf11"},"NamespaceShapeControls.ps1":{"bytes":2673,"sha256":"eb09f3cdb16701fa69c69e30f6ce491b36c0b00e3b20bb0319823b36b7616e65"},"OriginalWorker.ps1":{"bytes":33635,"sha256":"47336dc39a0175aa0be6493db816ab066237ca872a1fcc071fd165abd067aa44"},"Controller.ps1":{"bytes":7182,"sha256":"ee5243200061c1c669b829cb24a52bbbcc9225b72e1f36451be5e27e34c8218a"}}'
+            $root=Join-Path $env:RUNNER_TEMP 'font-workflow-source-6e8f70b7fa18b0979d88e19260f9fbe5'
+            if([IO.Directory]::Exists($root)-or [IO.File]::Exists($root)){throw 'REFUSED'}
+            $null=[IO.Directory]::CreateDirectory($root)
+            $handler=[Net.Http.HttpClientHandler]::new();$handler.AllowAutoRedirect=$false;$handler.AutomaticDecompression=[Net.DecompressionMethods]::None
+            $http=[Net.Http.HttpClient]::new($handler);$http.Timeout=[Threading.Timeout]::InfiniteTimeSpan;$cts=[Threading.CancellationTokenSource]::new(30000)
+            try {
+              foreach($name in $pins.Keys){
+                $uri='https://api.github.com/repos/rgin-ds/friends-pk-downloads/contents/.github/font-constructor-source-20261028-01/'+$name+'?ref='+$env:GITHUB_SHA
+                $req=[Net.Http.HttpRequestMessage]::new([Net.Http.HttpMethod]::Get,$uri)
+                $req.Headers.UserAgent.ParseAdd('private-font-source/1');$req.Headers.Accept.ParseAdd('application/vnd.github.raw+json');$req.Headers.Authorization=[Net.Http.Headers.AuthenticationHeaderValue]::new('Bearer',$env:GH_TOKEN);$req.Headers.Add('X-GitHub-Api-Version','2022-11-28')
+                $res=$null
+                try {
+                  $res=$http.SendAsync($req,[Net.Http.HttpCompletionOption]::ResponseHeadersRead,$cts.Token).GetAwaiter().GetResult()
+                  if([int]$res.StatusCode -ne 200 -or $res.Content.Headers.ContentEncoding.Count -ne 0 -or ($null -ne $res.Content.Headers.ContentLength -and $res.Content.Headers.ContentLength -ne $pins[$name].bytes)){throw 'REFUSED'}
+                  $s=$res.Content.ReadAsStreamAsync($cts.Token).GetAwaiter().GetResult();$m=[IO.MemoryStream]::new()
+                  try{$buf=[byte[]]::new(4096);while(($n=$s.ReadAsync($buf,0,$buf.Length,$cts.Token).GetAwaiter().GetResult()) -gt 0){if($m.Length+$n -gt $pins[$name].bytes){throw 'REFUSED'};$m.Write($buf,0,$n)};$data=$m.ToArray()}finally{$s.Dispose();$m.Dispose()}
+                  if($data.Length -ne $pins[$name].bytes -or [Convert]::ToHexString([Security.Cryptography.SHA256]::HashData($data)).ToLowerInvariant() -cne $pins[$name].sha256){throw 'REFUSED'}
+                  $f=[IO.File]::Open((Join-Path $root $name),[IO.FileMode]::CreateNew,[IO.FileAccess]::Write,[IO.FileShare]::None);try{$f.Write($data,0,$data.Length)}finally{$f.Dispose()}
+                } finally {if($null -ne $res){$res.Dispose()};$req.Dispose()}
+              }
+            } finally {$cts.Dispose();$http.Dispose();$handler.Dispose()}
+            $global:LASTEXITCODE=0
+            & (Join-Path $root 'Controller.ps1') -BindingBase64 $env:FONT_BINDING_BASE64 -BindingSha256 $env:FONT_BINDING_SHA256
+            exit $LASTEXITCODE
+          } catch {Write-Host 'WINDOWS_FONT_SOURCE_OR_ADMISSION_REFUSED';exit 1}
